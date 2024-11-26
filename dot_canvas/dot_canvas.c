@@ -11,13 +11,24 @@
 
 #include "chrono.h"
 
-// ---------------------------------------------------------------------------
+typedef struct {
+  float x, y, z, speed;
+}Stars;
 
+static void StarCreator(Stars* st, int max_stars){
+  for(int i = 0; i < max_stars; i++){
+    st[i].x = (rand()%2000) - 1000.0f;
+    st[i].y = (rand()%2000) - 1000.0f;
+    st[i].z = rand()%2000;
+    st[i].speed = (rand()%100) + 1.0f;
+  }
+}
+
+// --------------------------------------------------------------------------
 static int cpu_mhz = 0;
 static int dump = 0;
 
-static void ChronoShow ( char* name, int computations)
-{
+static void ChronoShow ( char* name, int computations) {
   float ms = ChronoWatchReset();
   float cycles = ms * (1000000.0f/1000.0f) * (float)cpu_mhz;
   float cyc_per_comp = cycles / (float)computations;
@@ -28,8 +39,7 @@ static void ChronoShow ( char* name, int computations)
 
 // // Limit framerate and return any remaining time to the OS 
 
-static void FramerateLimit (int max_fps)
-{   
+static void FramerateLimit (int max_fps) {   
   static unsigned int frame_time = 0;
 
   unsigned int t = GetMsTime();
@@ -40,49 +50,41 @@ static void FramerateLimit (int max_fps)
     usleep (( limit - elapsed) * 1000); // arg in microseconds
   frame_time = GetMsTime();
 }
-
 // ---------------------------------------------------------------------------
 
 // Fully UNoptimized graphics effect example
-static int DoEffect (short* drawlist, int max_vertices, int w, int h, int frame, float projection)
-{
-  float anim1 = 0.003f * (float)frame;
-  float anim2 = 0.0015f * (float)frame;
-  short* ori = drawlist;
-  int i, j;
-  int cx = w >> 1;  // Screen center
-  int cy = h >> 1; 
-  int n_sec = 200;
-  int n_rad = 45;
-  for(j = 0; j < n_sec; j++) {
-    for(i = 0; i < n_rad; i++) {
-      const float r1 = 150.0f;
-      const float r2 = 350.0f;
-      float alpha = 2.0f * 3.1426f * ((float)j)/(float)n_sec;
-      float beta  = 2.0f * 3.1426f * ((float)i)/(float)n_rad;
-      float x = (r2 + r1 * cos(beta + anim1)) * cos(alpha + anim2);
-      float y = (r2 + r1 * cos(beta + anim1)) * sin(alpha + anim2);
-      float z = r1 * sin(beta + anim1);
-      z += 1000.0f;
-      int xp = cx + (int)((x * projection) / z);
-      int yp = cy - (int)((y * projection) / z);  
-      if ((xp >= 0) && (yp >= 0) && (xp < w) && (yp < h)) {
-        drawlist[0] = xp;
-        drawlist[1] = yp;
-        drawlist[2] = (i + (j<<2)) & 0xff;
-        drawlist += 3;
-      }
-    } 
-  }
+static void DoEffect (unsigned int* drawlist, int w, int h, int pitch, float projection, Stars* st, int maxStars) {
+  // Starfield
+  for(int i = 0; i < maxStars; i++){
+    float xp = 0.0f;
+    float yp = 0.0f;
+    if(st[i].z > 0){
+      xp = (st[i].x * projection) / st[i].z;
+      yp = (st[i].y * projection) / st[i].z;
+    }
 
-  // Devuelve el numero de vertices que se han metido en la lista de pintado
-  // No es necesario hacerlo con resta de punteros, solo importa devolver el numero correcto
-  return (drawlist - ori) / 3;
+
+    if(xp <= w && yp <= h && xp >= 0 && yp >= 0){
+      drawlist[0] = xp;
+      drawlist[1] = yp;
+      drawlist[2] = 255;
+      drawlist += 3;
+    }
+ 
+    st[i].z -= st[i].speed;
+
+    if(st[i].z <= 0){
+      st[i].z += 2000.0f;
+      st[i].x = (rand()%2000) - 1000.0f;
+      st[i].y = (rand()%2000) - 1000.0f;
+      st[i].z = rand()%2000;
+    }
+  }
 }
 
 // ---------------------------------------------------------------------------
 
-static void DisplayVertices (unsigned int* pixels, short* drawlist, int n_vertices, int stride, unsigned int* palette)
+static void DisplayVertices (unsigned int* pixels, unsigned int* drawlist, int n_vertices, int stride, unsigned int* palette)
 {
   int i;
   for(i = 0; i < n_vertices; i++) {
@@ -98,8 +100,8 @@ static void DisplayVertices (unsigned int* pixels, short* drawlist, int n_vertic
 
 static unsigned int palette [256];
 
-int main ( int argc, char** argv)
-{
+int main ( int argc, char** argv) {
+  srand(time(NULL));
   int end = 0;
   int mouse_x = 0, mouse_y = 0;
   SDL_Surface  *g_SDLSrf;
@@ -108,7 +110,7 @@ int main ( int argc, char** argv)
 
   if ( argc < 2) { fprintf ( stderr, "I need the cpu speed in Mhz!\n"); exit(0);}
   cpu_mhz = atoi( argv[1]);
-  assert(cpu_mhz > 0);
+  // assert(cpu_mhz > 0);
   fprintf ( stdout, "Cycle times for a %d Mhz cpu\n", cpu_mhz);
 
   // Init SDL and screen
@@ -128,14 +130,30 @@ int main ( int argc, char** argv)
 
   // Small footprint buffer for vertices draw  
   // we are not using an structure to avoid padding to 8 bytes (instead of current 6)
-  int n_vertices = 10000;
-  short* drawlist = (short*) malloc (n_vertices * 3 * sizeof(short));
+  //int n_vertices = 10000;
+  //short* drawlist = (short*) malloc (n_vertices * 3 * sizeof(short));
 
   // Setup your effect initialization here
   // Horizontal field of view
   float hfov = 60.0f * ((3.1416f * 2.0f) / 360.0f);  // Degrees to radians
   float half_scr_w = (float)(req_w >> 1);
   float projection = (1.0f / tan ( hfov * 0.5f)) * half_scr_w;
+
+  //////////////////////////////////////////////////////
+  ///////        OUR STUFF              ////////////////
+  //////////////////////////////////////////////////////
+
+  unsigned int max_stars = 40000;
+
+  Stars constalation[max_stars];
+  StarCreator(constalation, max_stars);
+
+  unsigned int* drawList = (unsigned int*)malloc((max_stars * 3) * sizeof(unsigned int));
+
+  //////////////////////////////////////////////////////
+  //////////////////////////////////////////////////////
+  //////////////////////////////////////////////////////
+
 
   // Main loop
   g_SDLSrf = SDL_GetVideoSurface();
@@ -146,9 +164,9 @@ int main ( int argc, char** argv)
     // Your gfx effect goes here
 
     ChronoWatchReset();
-    int n_draw = DoEffect (drawlist, n_vertices, g_SDLSrf->w, g_SDLSrf->h, dump, projection);
-    assert(n_draw <= n_vertices);
-    ChronoShow ( "Donut festival", n_draw);
+    DoEffect (drawList, g_SDLSrf->w, g_SDLSrf->h, dump, projection, constalation, max_stars);
+    //assert(n_draw <= n_vertices);
+    //ChronoShow ( "Donut festival", n_draw);
 
     // Draw vertices; don't modify this section
     // Lock screen to get access to the memory array
@@ -159,8 +177,8 @@ int main ( int argc, char** argv)
     ChronoShow ( "Clean", g_SDLSrf->w * g_SDLSrf->h);
 
     // Paint vertices
-    DisplayVertices (g_SDLSrf->pixels, drawlist, n_draw, g_SDLSrf->pitch >> 2, palette);
-    ChronoShow ( "Preview", n_draw);
+    DisplayVertices (g_SDLSrf->pixels, drawList, max_stars, g_SDLSrf->pitch >> 2, palette);
+    //ChronoShow ( "Preview", n_draw);
 
     //Unlock the draw surface, dump to physical screen
     ChronoWatchReset();
