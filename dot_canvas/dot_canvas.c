@@ -1,11 +1,10 @@
-
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
 #include <string.h>
 #include <assert.h>
 #include <unistd.h>
+#include <time.h>
 
 #include <SDL/SDL.h>
 
@@ -13,12 +12,12 @@
 
 // ---------------------------------------------------------------------------
 
-typedef struct{
-	float x,y,z,speed;
-}Stars;
-//
 static int cpu_mhz = 0;
 static int dump = 0;
+
+typedef struct{
+	int x,y,z,speed;
+}Stars;
 
 static void ChronoShow ( char* name, int computations)
 {
@@ -45,39 +44,48 @@ static void FramerateLimit (int max_fps)
   frame_time = GetMsTime();
 }
 
+static void CreaterStars(Stars* st,int max_stars, int w, int h){
+	for(int i=0;i<max_stars;i++){
+		st[i].x=(rand()%2000) - 1000;
+		st[i].y=(rand()%2000) - 1000;
+		st[i].z=(rand()%2000);
+		st[i].speed=(rand()%200)+10;
+	}
+}
+
 // ---------------------------------------------------------------------------
 
 // Fully UNoptimized graphics effect example
-static int DoEffect (short* drawlist, int max_vertices, int w, int h, int frame, float projection,Stars* st)
+static int DoEffect (short* drawlist, int max_vertices, int w, int h,Stars* st, float projection)
 {
-  
   short* ori = drawlist;
-  int i;
+  int j;
   int cx = w >> 1;  // Screen center
-  int cy = h >> 1; 
-  for(i = 0; i < max_vertices; i++) {
-      float x = st[i].x;
-      float y = st[i].y;
-      float z = st[i].z;
-      z += st[i].speed;
-      st[i].z=z;
-      int xp=0;
-      int yp=0;
+  int cy = h >> 1;
+  for(j = 0; j < max_vertices; j++) {
+      float x = st[j].x;
+      float y = st[j].y;
+      float z = st[j].z;
+      z -= st[j].speed;
+      st[j].z=z;
+      int xp = 0;
+      int yp = 0;
       if(z>0){
-      	int xp = cx + (int)((x * projection) / z);
-      	int yp = cy - (int)((y * projection) / z);
+      	xp = cx + (int)((x * projection) / z);
+      	yp = cy - (int)((y * projection) / z);
       }else{
-      	st[i].x=(rand()%2000)-1000;
-      	st[i].y=(rand()%2000)-1000;
-      	st[i].z=(rand()%2000);
-      	st[i].speed=rand()%100;
-      }  
+      	st[j].x=(rand()%2000) - 1000;
+		st[j].y=(rand()%2000) - 1000;
+		st[j].z=(rand()%2000);
+		st[j].speed=(rand()%200)+10; 
+      }
+      
       if ((xp >= 0) && (yp >= 0) && (xp < w) && (yp < h)) {
         drawlist[0] = xp;
         drawlist[1] = yp;
-        drawlist[2] = (i + (j<<2)) & 0xff;
+        drawlist[2] = 0xff;
         drawlist += 3;
-      }
+      } 
   }
 
   // Devuelve el numero de vertices que se han metido en la lista de pintado
@@ -105,11 +113,12 @@ static unsigned int palette [256];
 
 int main ( int argc, char** argv)
 {
+  srand(time(NULL));
   int end = 0;
   int mouse_x = 0, mouse_y = 0;
   SDL_Surface  *g_SDLSrf;
   int req_w = 1024;
-  int req_h = 768; 
+  int req_h = 768;
 
   if ( argc < 2) { fprintf ( stderr, "I need the cpu speed in Mhz!\n"); exit(0);}
   cpu_mhz = atoi( argv[1]);
@@ -131,16 +140,18 @@ int main ( int argc, char** argv)
   for (i=0; i<256; i++)
     palette [i] = i | (i << 8) | (i << 16);
 
-  // Small footprint buffer for vertices draw  
-  // we are not using an structure to avoid padding to 8 bytes (instead of current 6)
-  int n_vertices = 10000;
-  short* drawlist = (short*) malloc (n_vertices * 3 * sizeof(short));
-
   // Setup your effect initialization here
   // Horizontal field of view
   float hfov = 60.0f * ((3.1416f * 2.0f) / 360.0f);  // Degrees to radians
   float half_scr_w = (float)(req_w >> 1);
   float projection = (1.0f / tan ( hfov * 0.5f)) * half_scr_w;
+  
+  // Small footprint buffer for vertices draw  
+  // we are not using an structure to avoid padding to 8 bytes (instead of current 6)
+  int n_vertices = 40000;
+  Stars cosntalacion[n_vertices];
+  short* drawlist = (short*) malloc (n_vertices * 3 * sizeof(short));
+  CreaterStars(cosntalacion,n_vertices,req_w,req_h);
 
   // Main loop
   g_SDLSrf = SDL_GetVideoSurface();
@@ -151,7 +162,7 @@ int main ( int argc, char** argv)
     // Your gfx effect goes here
 
     ChronoWatchReset();
-    int n_draw = DoEffect (drawlist, n_vertices, g_SDLSrf->w, g_SDLSrf->h, dump, projection);
+    int n_draw = DoEffect (drawlist, n_vertices, g_SDLSrf->w, g_SDLSrf->h,cosntalacion,projection);
     assert(n_draw <= n_vertices);
     ChronoShow ( "Donut festival", n_draw);
 
@@ -201,3 +212,5 @@ int main ( int argc, char** argv)
 
   return 1;
 }
+
+
