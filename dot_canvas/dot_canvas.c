@@ -44,8 +44,8 @@ static void FramerateLimit (int max_fps)
   frame_time = GetMsTime();
 }
 
-static void CreaterStars(Stars* st,int max_stars, int w, int h){
-	for(int i=0;i<max_stars;i++){
+static void CreaterStars(Stars* st, int max_stars){
+	for(int i = 0; i < max_stars; i++){
 		st[i].x=(rand()%2000) - 1000;
 		st[i].y=(rand()%2000) - 1000;
 		st[i].z=(rand()%2000);
@@ -151,7 +151,7 @@ int main ( int argc, char** argv)
   int n_vertices = 40000;
   Stars cosntalacion[n_vertices];
   short* drawlist = (short*) malloc (n_vertices * 3 * sizeof(short));
-  CreaterStars(cosntalacion,n_vertices,req_w,req_h);
+  CreaterStars(cosntalacion, n_vertices);
 
   // Main loop
   g_SDLSrf = SDL_GetVideoSurface();
