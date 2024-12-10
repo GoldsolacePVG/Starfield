@@ -16,7 +16,7 @@ static int cpu_mhz = 0;
 static int dump = 0;
 
 typedef struct{
-	float x,y,z,speed;
+	int x,y,z,speed;
 }Stars;
 
 static void ChronoShow ( char* name, int computations)
@@ -49,33 +49,36 @@ static void CreaterStars(Stars* st, int max_stars){
 		st[i].x=(rand()%2000) - 1000;
 		st[i].y=(rand()%2000) - 1000;
 		st[i].z=(rand()%2000);
-		st[i].speed=(rand()%5)+1;
+		st[i].speed=(rand()%200)+10;
 	}
 }
 
 // ---------------------------------------------------------------------------
 
+// Fully UNoptimized graphics effect example
 static int DoEffect (short* drawlist, int max_vertices, int w, int h,Stars* st, float projection)
 {
   short* ori = drawlist;
+  int j;
   int cx = w >> 1;  // Screen center
   int cy = h >> 1;
-  int xp = 0;
-  int yp = 0;
-  float x,y,z;
-  for(int j = 0; j < max_vertices; j++) {
-      x = st[j].x;
-      y = st[j].y;
-      z = st[j].z - st[j].speed;
-      
-      if(z < 0){
-		z += 2000;
+  for(j = 0; j < max_vertices; j++) {
+      float x = st[j].x;
+      float y = st[j].y;
+      float z = st[j].z;
+      z -= st[j].speed;
+      st[j].z=z;
+      int xp = 0;
+      int yp = 0;
+      if(z>0){
+      	xp = cx + (int)((x * projection) / z);
+      	yp = cy - (int)((y * projection) / z);
+      }else{
+      	st[j].x=(rand()%2000) - 1000;
+		st[j].y=(rand()%2000) - 1000;
+		st[j].z=(rand()%2000);
+		st[j].speed=(rand()%200)+10; 
       }
-      
-      st[j].z = z;
-      
-      xp = cx + (int)((x * projection) / z);
-      yp = cy - (int)((y * projection) / z);
       
       if ((xp >= 0) && (yp >= 0) && (xp < w) && (yp < h)) {
         drawlist[0] = xp;
@@ -161,7 +164,7 @@ int main ( int argc, char** argv)
     ChronoWatchReset();
     int n_draw = DoEffect (drawlist, n_vertices, g_SDLSrf->w, g_SDLSrf->h,cosntalacion,projection);
     assert(n_draw <= n_vertices);
-    ChronoShow ( "Stars festival", n_draw);
+    ChronoShow ( "Donut festival", n_draw);
 
     // Draw vertices; don't modify this section
     // Lock screen to get access to the memory array
@@ -169,21 +172,21 @@ int main ( int argc, char** argv)
 
     // Clean the screen
     SDL_FillRect(g_SDLSrf, NULL, SDL_MapRGB(g_SDLSrf->format, 0, 0, 0));
-    //ChronoShow ( "Clean", g_SDLSrf->w * g_SDLSrf->h);
+    ChronoShow ( "Clean", g_SDLSrf->w * g_SDLSrf->h);
 
     // Paint vertices
     DisplayVertices (g_SDLSrf->pixels, drawlist, n_draw, g_SDLSrf->pitch >> 2, palette);
-    //ChronoShow ( "Preview", n_draw);
+    ChronoShow ( "Preview", n_draw);
 
     //Unlock the draw surface, dump to physical screen
     ChronoWatchReset();
     SDL_UnlockSurface( g_SDLSrf);
     SDL_Flip( g_SDLSrf);
-    //ChronoShow ( "Screen dump", g_SDLSrf->w * g_SDLSrf->h);
+    ChronoShow ( "Screen dump", g_SDLSrf->w * g_SDLSrf->h);
 
     // Limit framerate and return any remaining time to the OS
     // Comment this line for benchmarking
-    //FramerateLimit (60);
+    FramerateLimit (60);
 
     dump++;
 
@@ -192,6 +195,14 @@ int main ( int argc, char** argv)
     {
       switch (event.type) 
       {
+        case SDL_MOUSEMOTION:
+          mouse_x = event.motion.x;
+          mouse_y = event.motion.y;
+          break;
+        case SDL_MOUSEBUTTONDOWN:
+          //printf("Mouse button %d pressed at (%d,%d)\n",
+          //       event.button.button, event.button.x, event.button.y);
+          break;
         case SDL_QUIT:
           end = 1;
           break;
